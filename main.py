@@ -1,6 +1,9 @@
-from aiogram import Bot, Router, types
+import asyncio
+
+from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
-from aiogram.fsm import State, StatesGroup, FSMContext
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
 import sqlite3
 import logging
@@ -31,35 +34,35 @@ def init_db():
 
 init_db()
 
-# Инициализация бота и маршрутизатора
+# Инициализация бота и диспетчера
 bot = Bot(token=TOKEN)
 storage = MemoryStorage()
-router = Router()
+dp = Dispatcher(storage=storage)
 
-@router.message(Command('start'))
+@dp.message(Command('start'))
 async def start(message: types.Message, state: FSMContext):
     await message.answer('Привет. Как тебя зовут?')
     await state.set_state(Form.name)
 
-@router.message(Form.name)
+@dp.message(Form.name)
 async def name_handler(message: types.Message, state: FSMContext):
     await state.update_data(name=message.text)
     await message.answer('Сколько тебе лет?')
     await state.set_state(Form.age)
 
-@router.message(Form.age)
+@dp.message(Form.age)
 async def age_handler(message: types.Message, state: FSMContext):
     await state.update_data(age=int(message.text))
     await message.answer('На каком курсе ты учишься?')
     await state.set_state(Form.course)
 
-@router.message(Form.course)
+@dp.message(Form.course)
 async def course_handler(message: types.Message, state: FSMContext):
     await state.update_data(course=message.text)
     await message.answer('Укажите пол? (м/ж)')
     await state.set_state(Form.gender)
 
-@router.message(Form.gender)
+@dp.message(Form.gender)
 async def gender_handler(message: types.Message, state: FSMContext):
     await state.update_data(gender=message.text)
     user_data = await state.get_data()
@@ -73,8 +76,9 @@ async def gender_handler(message: types.Message, state: FSMContext):
     conn.close()
 
     await message.answer('Данные сохранены!')
+    await state.clear()  # Сброс состояния после завершения
 
-@router.message(Command('stats'))
+@dp.message(Command('stats'))
 async def stats(message: types.Message):
     conn = sqlite3.connect('students.db')
     cur = conn.cursor()
@@ -106,7 +110,10 @@ async def stats(message: types.Message):
 
     await message.answer(response)
 
+async def main():
+    await dp.start_polling(bot)
+
 # Запуск бота
 if __name__ == '__main__':
-    from aiogram import executor
-    executor.start_polling(bot, router)
+
+    asyncio.run(main())
